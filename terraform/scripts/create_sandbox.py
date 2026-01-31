@@ -16,7 +16,7 @@ sandbox_request_body = {
     "state": "active",
     "tags": {"instruqt": "igor"},
     "admin_user": {
-        "email": os.environ.get("INSTRUQT_EMAIL"),
+        "email": os.environ.get("INFOBLOX_EMAIL"),
         "name": TEAM_ID
     }
 }
@@ -27,7 +27,7 @@ create_response = api.create_sandbox_account(sandbox_request_body)
 
 # Response handling
 if create_response["status"] == "success":
-    print("Sandbox created successfully.")
+    print("✅ Sandbox created successfully.")
     sandbox_data = create_response["data"]
     sandbox_id = None
     external_id = None
@@ -46,9 +46,9 @@ if create_response["status"] == "success":
     if sandbox_id:
         with open(SANDBOX_ID_FILE, "w") as f:
             f.write(sandbox_id)
-        print(f"Sandbox ID saved to {SANDBOX_ID_FILE}: {sandbox_id}")
+        print(f"📁 Sandbox ID saved to {SANDBOX_ID_FILE}: {sandbox_id}")
     else:
-        print("WARNING: Sandbox ID not found.")
+        print("⚠️ Sandbox ID not found.")
 
     # Extract external_id from admin_user.account_id
     admin_user = sandbox_data.get("result", {}).get("admin_user")
@@ -58,8 +58,8 @@ if create_response["status"] == "success":
     if external_id:
         with open(EXTERNAL_ID_FILE, "w") as f:
             f.write(external_id)
-        print(f"External ID saved to {EXTERNAL_ID_FILE}: {external_id}")
+        print(f"🔐 External ID saved to {EXTERNAL_ID_FILE}: {external_id}")
     else:
-        print("WARNING: External ID not found in admin_user.account_id.")
+        print("⚠️ External ID not found in admin_user.account_id.")
 else:
-    print(f"ERROR: Sandbox creation failed: {create_response['error']}")
+    print(f"❌ Sandbox creation failed: {create_response['error']}")
