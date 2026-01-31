@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-Creates a DNS A record for the Windows Client in Route 53.
-"""
 
 import os
 import boto3
@@ -28,7 +25,7 @@ region = os.getenv("DEMO_AWS_REGION", "us-east-1")
 hosted_zone_id = os.getenv("DEMO_HOSTED_ZONE_ID")
 
 if not aws_access_key_id or not aws_secret_access_key or not hosted_zone_id:
-    log("ERROR: DEMO_AWS_ACCESS_KEY_ID, DEMO_AWS_SECRET_ACCESS_KEY, and DEMO_HOSTED_ZONE_ID must be set")
+    log("❌ ERROR: DEMO_AWS_ACCESS_KEY_ID, DEMO_AWS_SECRET_ACCESS_KEY, and DEMO_HOSTED_ZONE_ID must be set")
     sys.exit(1)
 
 # ---------------------------
@@ -38,15 +35,15 @@ participant_id = os.getenv("INSTRUQT_PARTICIPANT_ID")
 dc1_ip = os.getenv("DC1_IP")
 
 if not participant_id:
-    log("ERROR: INSTRUQT_PARTICIPANT_ID is not set")
+    log("❌ ERROR: INSTRUQT_PARTICIPANT_ID is not set")
     sys.exit(1)
 
 if not dc1_ip:
-    log("ERROR: DC1_IP must be set")
+    log("❌ ERROR: DC1_IP must be set")
     sys.exit(1)
 
 # ---------------------------
-# Build FQDN mapping for Client
+# Build FQDN mapping for DC1
 # ---------------------------
 fqdn = f"{participant_id}-client.iracictechguru.com."
 
@@ -64,7 +61,7 @@ route53 = session.client("route53")
 # ---------------------------
 # Create A record in Route 53
 # ---------------------------
-log(f"Creating A record: {fqdn} -> {dc1_ip}")
+log(f"➡️  Creating A record: {fqdn} -> {dc1_ip}")
 try:
     response = route53.change_resource_record_sets(
         HostedZoneId=hosted_zone_id,
@@ -84,10 +81,19 @@ try:
         }
     )
     status = response['ChangeInfo']['Status']
-    log(f"A record created: {fqdn} -> {dc1_ip}")
-    log(f"Change status: {status}")
+    log(f"✅  A record created: {fqdn} -> {dc1_ip}")
+    log(f"📡  Change status: {status}")
+
+    # ---------------------------
+    # Save FQDN and IP to file
+    # ---------------------------
+    fqdn_file = "created_fqdn.txt"
+    with open(fqdn_file, "w") as f:
+        f.write(f"{fqdn} {dc1_ip}\n")
+    log(f"💾 FQDN and IP written to {fqdn_file}")
+
 except Exception as e:
-    log(f"ERROR: Failed to create A record {fqdn}: {e}")
+    log(f"❌ Failed to create A record {fqdn}: {e}")
     sys.exit(1)
 
 # ---------------------------
@@ -96,4 +102,4 @@ except Exception as e:
 with open(log_file, "a") as f:
     f.writelines(log_lines)
 
-log(f"Log written to {log_file}")
+log(f"📄 Log written to {log_file}")
