@@ -246,3 +246,224 @@ resource "aws_instance" "ubuntu_vm" {
 
   depends_on = [aws_internet_gateway.gw]
 }
+
+# ===========================================================
+# NIOS Grid Master (GM) - Traditional NIOS appliance
+# ===========================================================
+
+locals {
+  gm_ami_id = "ami-008772a29d4c2f558"
+}
+
+# --- GM Management Network Interface (10.100.0.10) ---
+resource "aws_network_interface" "gm_mgmt" {
+  subnet_id       = aws_subnet.public.id
+  private_ips     = ["10.100.0.10"]
+  security_groups = [aws_security_group.rdp_sg.id]
+  tags = { Name = "gm-mgmt-nic" }
+}
+
+# --- GM LAN1 Network Interface (10.100.1.11) ---
+resource "aws_network_interface" "gm_lan1" {
+  subnet_id       = aws_subnet.public_b.id
+  private_ips     = ["10.100.1.11"]
+  security_groups = [aws_security_group.rdp_sg.id]
+  tags = { Name = "gm-lan1-nic" }
+}
+
+# --- GM EC2 Instance ---
+resource "aws_instance" "gm" {
+  ami           = local.gm_ami_id
+  instance_type = "m5.2xlarge"
+  key_name      = aws_key_pair.rdp.key_name
+
+  network_interface {
+    network_interface_id = aws_network_interface.gm_mgmt.id
+    device_index         = 0
+  }
+  network_interface {
+    network_interface_id = aws_network_interface.gm_lan1.id
+    device_index         = 1
+  }
+
+  user_data = <<-EOF
+#infoblox-config
+temp_license: nios IB-V825 enterprise dns dhcp cloud
+remote_console_enabled: y
+default_admin_password: "${var.windows_admin_password}"
+lan1:
+  v4_addr: 10.100.1.11
+  v4_netmask: 255.255.255.0
+  v4_gw: 10.100.1.1
+mgmt:
+  v4_addr: 10.100.0.10
+  v4_netmask: 255.255.255.0
+  v4_gw: 10.100.0.1
+EOF
+
+  tags = { Name = "Infoblox-GM" }
+
+  depends_on = [aws_internet_gateway.gw]
+}
+
+# --- EIP for GM (attached to LAN1 for external access) ---
+resource "aws_eip" "gm_eip" {
+  domain = "vpc"
+  tags   = { Name = "gm-eip" }
+}
+
+resource "aws_eip_association" "gm_eip_assoc" {
+  network_interface_id = aws_network_interface.gm_lan1.id
+  allocation_id        = aws_eip.gm_eip.id
+  private_ip_address   = "10.100.1.11"
+}
+
+# ===========================================================
+# Windows Client #2 (10.100.0.120)
+# ===========================================================
+
+resource "aws_network_interface" "client_2_eni" {
+  subnet_id       = aws_subnet.public.id
+  private_ips     = ["10.100.0.120"]
+  security_groups = [aws_security_group.rdp_sg.id]
+  tags = { Name = "client-2-eni" }
+}
+
+resource "aws_eip" "client_2_eip" {
+  domain = "vpc"
+  tags   = { Name = "client-2-eip" }
+}
+
+resource "aws_eip_association" "client_2_assoc" {
+  network_interface_id = aws_network_interface.client_2_eni.id
+  allocation_id        = aws_eip.client_2_eip.id
+  private_ip_address   = "10.100.0.120"
+}
+
+resource "aws_instance" "client_2_vm" {
+  ami           = data.aws_ami.windows.id
+  instance_type = "t3.medium"
+  key_name      = aws_key_pair.rdp.key_name
+
+  network_interface {
+    network_interface_id = aws_network_interface.client_2_eni.id
+    device_index         = 0
+  }
+
+  user_data = templatefile("./scripts/winrm-init.ps1.tpl", {
+    admin_password = var.windows_admin_password
+  })
+
+  tags = { Name = "client-vm-2" }
+
+  depends_on = [aws_internet_gateway.gw]
+}
+
+# ===========================================================
+# Ubuntu Syslog Server (10.100.0.140) - TCP 514 enabled
+# ===========================================================
+
+# --- Security Group for Syslog server ---
+resource "aws_security_group" "syslog_sg" {
+  name        = "allow_syslog"
+  description = "Security group for syslog server with TCP 514"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 514
+    to_port     = 514
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Syslog TCP"
+  }
+
+  ingress {
+    from_port   = 514
+    to_port     = 514
+    protocol    = "udp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Syslog UDP"
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "SSH"
+  }
+
+  ingress {
+    from_port   = -1
+    to_port     = -1
+    protocol    = "icmp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "ICMP"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "syslog-sg" }
+}
+
+resource "aws_network_interface" "ubuntu_syslog_eni" {
+  subnet_id       = aws_subnet.public.id
+  private_ips     = ["10.100.0.140"]
+  security_groups = [aws_security_group.syslog_sg.id]
+  tags = { Name = "ubuntu-syslog-eni" }
+}
+
+resource "aws_eip" "ubuntu_syslog_eip" {
+  domain = "vpc"
+  tags   = { Name = "ubuntu-syslog-eip" }
+}
+
+resource "aws_eip_association" "ubuntu_syslog_assoc" {
+  network_interface_id = aws_network_interface.ubuntu_syslog_eni.id
+  allocation_id        = aws_eip.ubuntu_syslog_eip.id
+  private_ip_address   = "10.100.0.140"
+}
+
+resource "aws_instance" "ubuntu_syslog_vm" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t3.small"
+  key_name      = aws_key_pair.rdp.key_name
+
+  network_interface {
+    network_interface_id = aws_network_interface.ubuntu_syslog_eni.id
+    device_index         = 0
+  }
+
+  user_data = <<-EOF
+#!/bin/bash
+sudo apt update -y
+sudo apt install -y net-tools curl dnsutils traceroute iputils-ping rsyslog
+
+sudo hostnamectl set-hostname ubuntu-syslog
+
+# Enable rsyslog TCP and UDP reception on port 514
+cat >> /etc/rsyslog.conf << 'RSYSLOG_EOF'
+
+# Enable UDP syslog reception
+module(load="imudp")
+input(type="imudp" port="514")
+
+# Enable TCP syslog reception
+module(load="imtcp")
+input(type="imtcp" port="514")
+RSYSLOG_EOF
+
+# Restart rsyslog to apply changes
+sudo systemctl restart rsyslog
+sudo systemctl enable rsyslog
+EOF
+
+  tags = { Name = "ubuntu-syslog" }
+
+  depends_on = [aws_internet_gateway.gw]
+}

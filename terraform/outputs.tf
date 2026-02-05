@@ -23,3 +23,23 @@ output "niosx_2_public_ip" {
   description = "Public IP of NIOS-X server #2"
   value       = aws_eip.niosx_2_eip.public_ip
 }
+
+output "gm_public_ip" {
+  description = "Public IP of NIOS Grid Master (GM)"
+  value       = aws_eip.gm_eip.public_ip
+}
+
+output "client_2_public_ip" {
+  description = "Public IP for Windows client VM #2 (RDP access)"
+  value       = aws_eip.client_2_eip.public_ip
+}
+
+output "ubuntu_syslog_public_ip" {
+  description = "Public IP for Ubuntu syslog server"
+  value       = aws_eip.ubuntu_syslog_eip.public_ip
+}
+
+output "ssh_to_ubuntu_syslog" {
+  description = "SSH command to access the Ubuntu syslog server"
+  value       = "ssh -i instruqt-dc-key.pem ubuntu@${aws_eip.ubuntu_syslog_eip.public_ip}"
+}
