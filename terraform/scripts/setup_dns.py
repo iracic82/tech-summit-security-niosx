@@ -34,6 +34,7 @@ if not aws_access_key_id or not aws_secret_access_key or not hosted_zone_id:
 participant_id = os.getenv("INSTRUQT_PARTICIPANT_ID")
 dc1_ip = os.getenv("DC1_IP")
 client_2_ip = os.getenv("CLIENT_2_IP")
+gm_ip = os.getenv("GM_IP")
 
 if not participant_id:
     log("❌ ERROR: INSTRUQT_PARTICIPANT_ID is not set")
@@ -46,11 +47,15 @@ if not dc1_ip:
 if not client_2_ip:
     log("⚠️  WARNING: CLIENT_2_IP is not set, skipping client-2 DNS record")
 
+if not gm_ip:
+    log("⚠️  WARNING: GM_IP is not set, skipping infoblox GM DNS record")
+
 # ---------------------------
 # Build FQDN mapping
 # ---------------------------
 fqdn_dc1 = f"{participant_id}-client.iracictechguru.com."
 fqdn_client2 = f"{participant_id}-client2.iracictechguru.com."
+fqdn_gm = f"{participant_id}-infoblox.iracictechguru.com."
 
 # ---------------------------
 # Create boto3 session
@@ -125,6 +130,37 @@ if client_2_ip:
         sys.exit(1)
 
 # ---------------------------
+# Create A record for NIOS GM
+# ---------------------------
+if gm_ip:
+    log(f"➡️  Creating A record: {fqdn_gm} -> {gm_ip}")
+    try:
+        response = route53.change_resource_record_sets(
+            HostedZoneId=hosted_zone_id,
+            ChangeBatch={
+                "Comment": f"Upsert A record for {fqdn_gm}",
+                "Changes": [
+                    {
+                        "Action": "UPSERT",
+                        "ResourceRecordSet": {
+                            "Name": fqdn_gm,
+                            "Type": "A",
+                            "TTL": 300,
+                            "ResourceRecords": [{"Value": gm_ip}]
+                        }
+                    }
+                ]
+            }
+        )
+        status = response['ChangeInfo']['Status']
+        log(f"✅  A record created: {fqdn_gm} -> {gm_ip}")
+        log(f"📡  Change status: {status}")
+
+    except Exception as e:
+        log(f"❌ Failed to create A record {fqdn_gm}: {e}")
+        sys.exit(1)
+
+# ---------------------------
 # Save FQDNs and IPs to file
 # ---------------------------
 fqdn_file = "created_fqdn.txt"
@@ -132,6 +168,8 @@ with open(fqdn_file, "w") as f:
     f.write(f"{fqdn_dc1} {dc1_ip}\n")
     if client_2_ip:
         f.write(f"{fqdn_client2} {client_2_ip}\n")
+    if gm_ip:
+        f.write(f"{fqdn_gm} {gm_ip}\n")
 log(f"💾 FQDNs and IPs written to {fqdn_file}")
 
 # ---------------------------
