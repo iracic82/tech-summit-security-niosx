@@ -29,10 +29,11 @@ if not aws_access_key_id or not aws_secret_access_key or not hosted_zone_id:
     sys.exit(1)
 
 # ---------------------------
-# Participant + IP from env
+# Participant + IPs from env
 # ---------------------------
 participant_id = os.getenv("INSTRUQT_PARTICIPANT_ID")
 dc1_ip = os.getenv("DC1_IP")
+client_2_ip = os.getenv("CLIENT_2_IP")
 
 if not participant_id:
     log("❌ ERROR: INSTRUQT_PARTICIPANT_ID is not set")
@@ -42,10 +43,14 @@ if not dc1_ip:
     log("❌ ERROR: DC1_IP must be set")
     sys.exit(1)
 
+if not client_2_ip:
+    log("⚠️  WARNING: CLIENT_2_IP is not set, skipping client-2 DNS record")
+
 # ---------------------------
-# Build FQDN mapping for DC1
+# Build FQDN mapping
 # ---------------------------
-fqdn = f"{participant_id}-client.iracictechguru.com."
+fqdn_dc1 = f"{participant_id}-client.iracictechguru.com."
+fqdn_client2 = f"{participant_id}-client2.iracictechguru.com."
 
 # ---------------------------
 # Create boto3 session
@@ -59,19 +64,19 @@ session = boto3.Session(
 route53 = session.client("route53")
 
 # ---------------------------
-# Create A record in Route 53
+# Create A record for DC1/Client
 # ---------------------------
-log(f"➡️  Creating A record: {fqdn} -> {dc1_ip}")
+log(f"➡️  Creating A record: {fqdn_dc1} -> {dc1_ip}")
 try:
     response = route53.change_resource_record_sets(
         HostedZoneId=hosted_zone_id,
         ChangeBatch={
-            "Comment": f"Upsert A record for {fqdn}",
+            "Comment": f"Upsert A record for {fqdn_dc1}",
             "Changes": [
                 {
                     "Action": "UPSERT",
                     "ResourceRecordSet": {
-                        "Name": fqdn,
+                        "Name": fqdn_dc1,
                         "Type": "A",
                         "TTL": 300,
                         "ResourceRecords": [{"Value": dc1_ip}]
@@ -81,20 +86,53 @@ try:
         }
     )
     status = response['ChangeInfo']['Status']
-    log(f"✅  A record created: {fqdn} -> {dc1_ip}")
+    log(f"✅  A record created: {fqdn_dc1} -> {dc1_ip}")
     log(f"📡  Change status: {status}")
 
-    # ---------------------------
-    # Save FQDN and IP to file
-    # ---------------------------
-    fqdn_file = "created_fqdn.txt"
-    with open(fqdn_file, "w") as f:
-        f.write(f"{fqdn} {dc1_ip}\n")
-    log(f"💾 FQDN and IP written to {fqdn_file}")
-
 except Exception as e:
-    log(f"❌ Failed to create A record {fqdn}: {e}")
+    log(f"❌ Failed to create A record {fqdn_dc1}: {e}")
     sys.exit(1)
+
+# ---------------------------
+# Create A record for Client 2
+# ---------------------------
+if client_2_ip:
+    log(f"➡️  Creating A record: {fqdn_client2} -> {client_2_ip}")
+    try:
+        response = route53.change_resource_record_sets(
+            HostedZoneId=hosted_zone_id,
+            ChangeBatch={
+                "Comment": f"Upsert A record for {fqdn_client2}",
+                "Changes": [
+                    {
+                        "Action": "UPSERT",
+                        "ResourceRecordSet": {
+                            "Name": fqdn_client2,
+                            "Type": "A",
+                            "TTL": 300,
+                            "ResourceRecords": [{"Value": client_2_ip}]
+                        }
+                    }
+                ]
+            }
+        )
+        status = response['ChangeInfo']['Status']
+        log(f"✅  A record created: {fqdn_client2} -> {client_2_ip}")
+        log(f"📡  Change status: {status}")
+
+    except Exception as e:
+        log(f"❌ Failed to create A record {fqdn_client2}: {e}")
+        sys.exit(1)
+
+# ---------------------------
+# Save FQDNs and IPs to file
+# ---------------------------
+fqdn_file = "created_fqdn.txt"
+with open(fqdn_file, "w") as f:
+    f.write(f"{fqdn_dc1} {dc1_ip}\n")
+    if client_2_ip:
+        f.write(f"{fqdn_client2} {client_2_ip}\n")
+log(f"💾 FQDNs and IPs written to {fqdn_file}")
 
 # ---------------------------
 # Write log to file
