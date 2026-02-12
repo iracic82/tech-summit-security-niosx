@@ -586,7 +586,7 @@ resource "azurerm_windows_virtual_machine" "win11" {
   location              = azurerm_resource_group.lab.location
   resource_group_name   = azurerm_resource_group.lab.name
   size                  = var.azure_vm_size
-  admin_username        = "Administrator"
+  admin_username        = "LabAdmin"
   admin_password        = var.windows_admin_password
   network_interface_ids = [azurerm_network_interface.win11.id]
 
