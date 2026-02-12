@@ -26,6 +26,8 @@ resource "aws_eip_association" "niosx_1_assoc" {
   network_interface_id = aws_network_interface.niosx_1_eni.id
   allocation_id        = aws_eip.niosx_1_eip.id
   private_ip_address   = "10.100.0.200"
+
+  depends_on = [aws_instance.niosx_1]
 }
 
 resource "aws_instance" "niosx_1" {
@@ -79,6 +81,8 @@ resource "aws_eip_association" "niosx_2_assoc" {
   network_interface_id = aws_network_interface.niosx_2_eni.id
   allocation_id        = aws_eip.niosx_2_eip.id
   private_ip_address   = "10.100.1.200"
+
+  depends_on = [aws_instance.niosx_2]
 }
 
 resource "aws_instance" "niosx_2" {
