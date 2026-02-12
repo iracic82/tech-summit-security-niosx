@@ -1,11 +1,11 @@
 # Tech Summit Security Lab — NIOS-X Infrastructure
 
-Terraform and Python scripts for the **Tech Summit Security** Instruqt lab. Deploys a comprehensive security-focused environment in AWS with Infoblox NIOS Grid Master, NIOS-X servers, Windows Clients, and Ubuntu workstations.
+Terraform and Python scripts for the **Tech Summit Security** Instruqt lab. Deploys a comprehensive security-focused environment across **AWS** and **Azure** with Infoblox NIOS Grid Master, NIOS-X servers, Windows Clients, Azure Windows 11 desktops, and Ubuntu workstations.
 
 ## Architecture
 
 ```
-VPC: 10.100.0.0/16 (eu-central-1)
+AWS VPC: 10.100.0.0/16 (eu-central-1)
 ├── Public Subnet:   10.100.0.0/24 (eu-central-1a)
 └── Public Subnet B: 10.100.1.0/24 (eu-central-1b)
 
@@ -17,6 +17,12 @@ VPC: 10.100.0.0/16 (eu-central-1)
 10.100.0.140  →  Ubuntu Syslog Server     (t3.small, Ubuntu 22.04, TCP/UDP 514)
 10.100.0.200  →  NIOS-X Server #1         (m5.2xlarge, AMI-based)
 10.100.1.200  →  NIOS-X Server #2         (m5.2xlarge, AMI-based)
+
+Azure VNet: 10.200.0.0/16
+└── Public Subnet: 10.200.0.0/24
+
+Dynamic IP  →  Windows 11 Client 3 (Azure)  (Standard_D2s_v3, Win11 24H2 Pro)
+Dynamic IP  →  Windows 11 Client 4 (Azure)  (Standard_D2s_v3, Win11 24H2 Pro)
 ```
 
 ## Components
@@ -28,14 +34,16 @@ VPC: 10.100.0.0/16 (eu-central-1)
 | **Windows Clients** | Management workstations with RDP access |
 | **Ubuntu Workstation** | CLI-based operations via SSH |
 | **Ubuntu Syslog** | Centralized logging server with rsyslog (TCP/UDP 514) |
+| **Azure Win11 Client 3** | Azure Windows 11 desktop with RDP access (LabAdmin) |
+| **Azure Win11 Client 4** | Azure Windows 11 desktop with RDP access (LabAdmin) |
 
 ## Repository Structure
 
 ```
 terraform/
-├── providers.tf         # AWS provider
-├── variables.tf         # Region, VPC CIDR, admin password, join tokens
-├── main.tf              # VPC, subnets, IGW, SGs, GM, Windows Clients, Ubuntu VMs
+├── providers.tf         # AWS + Azure providers
+├── variables.tf         # Region, VPC CIDR, admin password, join tokens, Azure settings
+├── main.tf              # VPC, subnets, IGW, SGs, GM, Windows Clients, Ubuntu VMs, Azure Win11 VMs
 ├── niosx.tf             # 2x NIOS-X EC2 instances with cloud-init join tokens
 ├── outputs.tf           # Public IPs and SSH commands
 └── scripts/
@@ -62,6 +70,8 @@ terraform/
 | `{participant_id}-infoblox.iracictechguru.com` | NIOS Grid Master IP |
 | `{participant_id}-niosx1.iracictechguru.com` | NIOS-X Server #1 IP |
 | `{participant_id}-niosx2.iracictechguru.com` | NIOS-X Server #2 IP |
+| `{participant_id}-client3-azure.iracictechguru.com` | Azure Win11 Client 3 IP |
+| `{participant_id}-client4-azure.iracictechguru.com` | Azure Win11 Client 4 IP |
 
 ## Required Variables
 
@@ -69,6 +79,8 @@ terraform/
 |----------|-------------|
 | `windows_admin_password` | Windows Administrator password (sensitive) |
 | `infoblox_join_token` | CSP join token for NIOS-X servers (sensitive) |
+| `azure_location` | Azure region for Win11 VMs (default: `germanywestcentral`) |
+| `azure_vm_size` | Azure VM size (default: `Standard_D2s_v3`) |
 
 ## Required Environment Variables (for Python scripts)
 
@@ -85,6 +97,12 @@ terraform/
 | `DC1_IP` | Windows Client public IP |
 | `CLIENT_2_IP` | Windows Client 2 public IP |
 | `GM_IP` | NIOS Grid Master public IP |
+| `AZURE_WIN11_IP` | Azure Win11 Client 3 public IP |
+| `AZURE_WIN11_2_IP` | Azure Win11 Client 4 public IP |
+| `ARM_CLIENT_ID` | Azure service principal ID |
+| `ARM_CLIENT_SECRET` | Azure service principal password |
+| `ARM_SUBSCRIPTION_ID` | Azure subscription ID |
+| `ARM_TENANT_ID` | Azure tenant ID |
 
 ## Usage
 
@@ -116,5 +134,7 @@ python3 create_dns_niosx.py
 |----------|-------------|-------------|
 | NIOS Grid Master UI | `https://{participant_id}-infoblox.iracictechguru.com` | admin / Inf0blox2025! |
 | Windows Client RDP | Via Guacamole | Administrator / Inf0blox2025! |
+| Azure Win11 Client 3 RDP | Via Guacamole | LabAdmin / Inf0blox2025! |
+| Azure Win11 Client 4 RDP | Via Guacamole | LabAdmin / Inf0blox2025! |
 | Ubuntu SSH | `ssh -i instruqt-dc-key.pem ubuntu@{ip}` | Key-based |
 | Infoblox Portal | https://csp.infoblox.com | CSP credentials |
